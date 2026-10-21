@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#173e37">
+  <meta name="description" content="A little practice. A lot more independence. Learn VoiceOver and TalkBack gestures with friendly lessons and little rewards.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Gestures">
+  <title>Gesture Garden · BISM</title>
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./icon-180.png">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./lessons.js" defer></script>
+  <script src="./gestures.js" defer></script>
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <aside class="sidebar" aria-label="App navigation">
+    <a href="#home" class="brand" aria-label="Gesture Garden home"><span class="brand-mark" aria-hidden="true">✳</span><span>gesture<span class="brand-light">garden</span><small>A LITTLE BISM MAGIC</small></span></a>
+    <div class="sidebar-caption">GROW AT YOUR OWN PACE</div>
+    <nav class="nav" aria-label="Main navigation">
+      <a href="#home" data-nav="home"><span data-icon="home"></span>My garden</a>
+      <a href="#practice" data-nav="practice"><span data-icon="hand"></span>Practice</a>
+      <a href="#rewards" data-nav="rewards"><span data-icon="award"></span>My milestones</a>
+      <a href="#class" data-nav="class"><span data-icon="users"></span>Our class<span class="nav-dot"></span></a>
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="encouragement"><span class="plant" aria-hidden="true">❋</span><p>Every little gesture<br>is a step forward.</p><small>You've got this.</small></div>
+      <a href="#settings" class="settings-link" data-nav="settings"><span data-icon="settings"></span>Make it yours</a>
+      <button class="help-link" id="help-button"><span data-icon="help"></span>A helping hand</button>
+      <div class="bism-wordmark">BISM <span>Learning for independence.</span></div>
+    </div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar">
+      <span class="location">Your learning space <span class="little-spark" aria-hidden="true">✧</span></span>
+      <div class="header-actions"><span class="save-status" id="save-status"><i></i>Saved on this device</span><button id="sound-toggle" class="icon-button" aria-label="Turn reward sounds off" title="Reward sounds"><span data-icon="volume"></span></button><a href="#rewards" class="coin-pill" aria-label="Your coins"><span aria-hidden="true">✦</span><strong id="header-coins">0</strong><span class="coin-label">coins</span></a><a href="#settings" class="avatar" aria-label="Your preferences">Y</a></div>
+    </header>
+    <main id="main" tabindex="-1"></main>
+    <footer class="footer"><span>Made for your pace. Built for your independence.</span><button id="install-button"><span data-icon="phone"></span>Add to your home screen<span aria-hidden="true">↗</span></button></footer>
+  </div>
+  <dialog id="info-dialog" aria-labelledby="dialog-title"><div id="dialog-content"></div><button class="button primary dialog-close" id="dialog-close">Got it</button></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <div id="announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+  <noscript><p class="noscript">Gesture Garden needs JavaScript for lessons. Enable JavaScript in Safari to start practicing.</p></noscript>
+</body>
+</html>
