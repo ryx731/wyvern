@@ -1,6 +1,6 @@
 /* A version stays active until every existing app window is closed. */
 const CACHE_PREFIX = 'gesture-garden-';
-const CACHE_NAME = `${CACHE_PREFIX}v1`;
+const CACHE_NAME = `${CACHE_PREFIX}v4`;
 const CORE_ASSETS = [
   './', './index.html', './styles.css', './app.js', './lessons.js',
   './gestures.js', './manifest.webmanifest', './icon.svg',

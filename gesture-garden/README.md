@@ -1,6 +1,6 @@
 # BISM Gesture Garden
 
-An early interactive prototype for learning phone gestures with reassuring audio rewards, optional coins, and a calm, accessible interface. The detailed product and curriculum plan is in `FOUNDATION.md`.
+An early interactive prototype for learning phone gestures with optional audio rewards, celebratory coins, and a calm, accessible interface. The detailed product and curriculum plan is in `FOUNDATION.md`.
 
 ## Run locally
 
@@ -34,10 +34,10 @@ No speed penalties, purchase flows, or real money are involved. Progress is save
 
 ## Verification
 
-Run meaningful gesture-recognition tests with:
+Run gesture-recognition and offline behavior tests with:
 
 ```powershell
-node --test tests/gestures.test.cjs
+node --test tests/*.test.cjs
 ```
 
 The prototype still needs testing on physical iPhones in Safari and Home Screen mode with VoiceOver, larger text, Zoom, and reduced motion, plus Android TalkBack tests. Desktop browser checks do not certify iOS multi-touch or screen-reader behavior. See `FOUNDATION.md` for the release checklist and source-linked gesture corrections.

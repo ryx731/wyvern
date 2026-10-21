@@ -109,7 +109,7 @@
     document.querySelectorAll('.rep-dots i').forEach((dot,i)=>dot.classList.toggle('on',i<reps));
     $('#gesture-pad').classList.add('success');$('#practice-feedback').textContent=reps===3?'Three little steps. A lovely bit of progress!':`Lovely. ${reps} ${reps===1?'step':'steps'} practiced. Keep going at your pace.`;
     if(reps===3){const confirm=$('[data-action="confirm-step"]');if(confirm)confirm.disabled=true;sessionTimer=setTimeout(completeLesson,900);return;}
-    if(session.mode==='guided'){$('#pad-title').textContent=`One small step. ${reps+1} of 3.`;$('#pad-instruction').textContent=session.lesson.steps[reps];}
+    if(session.mode==='guided'){$('#pad-title').textContent=`One small step. ${reps+1} of 3.`;$('#pad-instruction').textContent=session.lesson.steps[reps];$('#practice-feedback').textContent=`Lovely. Next step: ${session.lesson.steps[reps]}`;}
     sessionTimer=setTimeout(()=>{if(!session)return;session.busy=false;$('#gesture-pad')?.classList.remove('success');},700);
   }
   function completeLesson(){
@@ -127,7 +127,7 @@
     if('speechSynthesis' in window)speechSynthesis.cancel();
     const hash=location.hash.slice(1)||'home';const page=hash.split('/')[0];
     document.querySelectorAll('[data-nav]').forEach(a=>{if(a.dataset.nav===(page==='lesson'?'practice':page))a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
-    ({home:renderHome,practice:renderPractice,rewards:renderRewards,class:renderClass,settings:renderSettings}[page]||(()=>renderLesson(hash.split('/')[1])))();
+    ({home:renderHome,practice:renderPractice,rewards:renderRewards,class:renderClass,settings:renderSettings}[page]||(page==='lesson'?()=>renderLesson(hash.split('/')[1]):renderHome))();
     document.title=`${({home:'My garden',practice:'Practice',rewards:'My milestones',class:'Our class',settings:'Make it yours',lesson:'Practice a gesture'})[page]||'Gesture Garden'} · BISM Gesture Garden`;
     focusMain();
   }
@@ -138,6 +138,7 @@
   document.addEventListener('pointerdown',unlockAudio,{capture:true});
   document.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' ')unlockAudio();});
   $('#sound-toggle').addEventListener('click',()=>{state.sound=!state.sound;save();if(state.sound)ding();toast(`Reward sounds ${state.sound?'on':'off'}.`);});
+  $('.skip-link').addEventListener('click',e=>{e.preventDefault();focusMain();});
   $('#help-button').addEventListener('click',help);$('#install-button').addEventListener('click',installHelp);$('#dialog-close').addEventListener('click',()=>$('#info-dialog').close());
   $('#info-dialog').addEventListener('click',e=>{if(e.target===$('#info-dialog')){const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)e.target.close();}});
   main.addEventListener('click',e=>{
@@ -149,7 +150,7 @@
     if(action==='confirm-step')advanceStep();
     if(action==='test-sound'){if(!state.sound){toast('Reward sounds are off. Turn them on with the sound button above.');return;}ding();}
     if(action==='hear'&&session)speak(`${session.lesson.title}. ${session.lesson.instructions[state.platform]}. ${session.lesson.steps.join('. ')}`);
-    if((action==='restart'||action==='repeat')&&session){session.reps=0;session.busy=false;renderSession();announce('Practice restarted. Take your time.');}
+    if((action==='restart'||action==='repeat')&&session){session.reps=0;session.busy=false;renderSession();$('[data-action="restart"]')?.focus({preventScroll:true});announce('Practice restarted. Take your time.');}
     if(action==='install')installHelp();
     if(action==='export'){const data=JSON.stringify({app:'BISM Gesture Garden',exported:new Date().toISOString(),...state},null,2);const url=URL.createObjectURL(new Blob([data],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=`gesture-garden-progress-${dateKey()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Your progress record is ready to save.');}
   });
