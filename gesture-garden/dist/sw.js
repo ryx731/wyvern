@@ -1,9 +1,10 @@
 /* A version stays active until every existing app window is closed. */
 const CACHE_PREFIX = 'gesture-garden-';
-const CACHE_NAME = `${CACHE_PREFIX}v4`;
+const CACHE_NAME = `${CACHE_PREFIX}v6-minimal`;
 const CORE_ASSETS = [
   './', './index.html', './styles.css', './app.js', './lessons.js',
-  './gestures.js', './manifest.webmanifest', './icon.svg',
+  './gestures.js', './practice-core.js', './manifest.webmanifest', './icon.svg',
+  './app.js?v=3', './styles.css?v=3', './lessons.js?v=3',
   './icon-180.png', './icon-192.png', './icon-512.png'
 ];
 
@@ -53,3 +54,4 @@ self.addEventListener('fetch', event => {
     return response;
   })());
 });
+

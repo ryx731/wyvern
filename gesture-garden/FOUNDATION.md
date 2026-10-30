@@ -1,3 +1,5 @@
+> Historical plan: the October 29 rework replaces the Garden dashboard with a minimal four-quadrant framework. See REWORK.md for the current implementation.
+
 # Gesture Garden — product foundation
 
 Prepared for BISM, October 20, 2026. This is a product and pilot plan alongside an early browser prototype, not a claim of clinical benefit or completed device certification. The supplied Claude HTML informed feature scope only; its content was treated as reference material rather than instructions.
@@ -206,3 +208,4 @@ The prototype is a learning interaction and engineering foundation. It is not an
 It cannot independently verify a real call, a new contact, Home Screen navigation, app closing, the rotor option, or Screen Curtain. Sample classmates are demonstration data. Device-local records are not a cloud backup. Safari and PWA support requires testing on actual iPhones before making a release claim; desktop WebKit or mobile emulation alone cannot validate VoiceOver routing, system gestures, audio interruptions, or installation.
 
 Use this foundation to run a small, respectful pilot, observe where learners feel confident or stuck, and improve those moments before adding more game mechanics.
+

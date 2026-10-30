@@ -1,168 +1,87 @@
 (() => {
-  'use strict';
-  const $ = (s, root = document) => root.querySelector(s);
-  const main = $('#main');
-  const lessons = window.GESTURE_LESSONS || [];
-  const STORAGE_KEY = 'bism-gesture-garden-v1';
-  const defaults = {platform:'ios',coins:0,completed:{},sessions:[],sound:true,volume:.35,tone:'garden',large:false,contrast:false,motion:false};
-  let state = {...defaults}, storageOK = true, filter = 'All', session = null, detachPad = null, toastTimer, sessionTimer, audioContext;
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-    if (saved && typeof saved === 'object') {
-      state = {...defaults,...saved};
-      if (!['ios','android'].includes(state.platform)) state.platform='ios';
-      if (!Number.isFinite(state.coins) || state.coins < 0) state.coins=0;
-      if (!state.completed || typeof state.completed !== 'object' || Array.isArray(state.completed)) state.completed={};
-      if (!Array.isArray(state.sessions)) state.sessions=[];
-      state.sessions=state.sessions.filter(x=>x && typeof x.date==='string' && typeof x.lesson==='string');
-      state.volume=Math.max(0,Math.min(1,Number(state.volume)||0));
-    }
-  } catch {storageOK=false;}
-  const paths = {
-    home:'M3 10 12 3l9 7M5 9v11h5v-7h4v7h5V9',
-    hand:'M8 13V6a2 2 0 0 1 4 0v6-8a2 2 0 0 1 4 0v8-5a2 2 0 0 1 4 0v8c0 4-3 7-7 7h-1c-3 0-5-2-6-4l-3-5a2 2 0 0 1 3-2l2 2',
-    award:'M8 14 6 22l6-3 6 3-2-8M19 8a7 7 0 1 1-14 0 7 7 0 0 1 14 0ZM9 8l2 2 4-4',
-    users:'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M22 21v-2a4 4 0 0 0-3-3.87M16 3a4 4 0 0 1 0 8M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',
-    settings:'m9 3 1-2h4l1 2 3 2 2 0 2 4-1 2v3l1 2-2 4-2 0-3 2-1 2h-4l-1-2-3-2-2 0-2-4 1-2v-3L2 9l2-4 2 0 3-2ZM16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',
-    help:'M9 9a3 3 0 0 1 6 0c0 2-3 2-3 4M12 17h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z',
-    volume:'m11 5-6 4H2v6h3l6 4V5ZM15 8a6 6 0 0 1 0 8M18 5a10 10 0 0 1 0 14',
-    mute:'m11 5-6 4H2v6h3l6 4V5ZM16 9l6 6M22 9l-6 6',
-    phone:'M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2ZM10 18h4M10 5h4',
-    arrow:'M5 12h14m-5-5 5 5-5 5',back:'M19 12H5m5-5-5 5 5 5',clock:'M12 8v5l3 2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z',
-    check:'m5 12 4 4L19 6',spark:'m12 2 2.7 7.3L22 12l-7.3 2.7L12 22l-2.7-7.3L2 12l7.3-2.7L12 2Z',
-    tap:'M9 14V8a2 2 0 0 1 4 0v6l2-2a2 2 0 0 1 3 2l-2 5H8l-3-5a2 2 0 0 1 3-2l1 2M6 7a5 5 0 0 1 10 0M11 1v1',
-    double:'M8 13V7a2 2 0 0 1 4 0v6l2-2a2 2 0 0 1 3 2l-2 6H7l-3-5a2 2 0 0 1 3-2l1 1M17 2v5m-2-3h4M20 8h2',
-    swipe:'M3 6h18m-4-4 4 4-4 4M7 2 3 6l4 4M10 20v-7a2 2 0 0 1 4 0v5l2-1a2 2 0 0 1 2 3l-1 2H9l-3-3',
-    magic:'M8 17V9a2 2 0 0 1 4 0v7-9a2 2 0 0 1 4 0v9l2-1a2 2 0 0 1 3 2l-3 5H9l-4-5a2 2 0 0 1 3-2M4 1v5M1 3.5h6M19 2h3m-1.5-1.5v3',
-    hold:'M8 18v-7a2 2 0 0 1 4 0v6l2-1a2 2 0 0 1 3 2l-2 4H8l-4-5M12 2a6 6 0 0 1 6 6M10 2H7M4 5l-1 3',
-    rotor:'M4 10a8 8 0 0 1 13-6l3 2M20 1v5h-5M20 14a8 8 0 0 1-13 6l-3-2M4 23v-5h5M10 15V9a2 2 0 0 1 4 0v6',
-    scroll:'M8 5 12 1l4 4M12 1v7M8 19l4 4 4-4M12 16v7M4 10h16v4H4z',
-    curtain:'M2 3h20v15H2V3ZM12 3v15M6 3c2 4 2 7-1 11M18 3c-2 4-2 7 1 11M8 22h8M12 18v4',
-    leaf:'M5 20c0-6 4-10 12-13M4 16C1 5 13 2 21 3c0 11-4 18-13 15M10 12l1-5M10 12l6 1',
-    play:'m9 5 11 7-11 7V5Z',apple:'M12 6c1-3 3-4 4-4 0 3-2 4-4 4ZM12 7C8 4 3 7 4 13c1 5 4 9 7 7l2-1 2 1c2 1 5-2 6-6-4-2-4-5-1-7-3-3-5-1-8 0Z',
-    android:'M5 10h14v10H5V10ZM5 8a7 7 0 0 1 14 0H5ZM7 3 5 1M17 3l2-2M2 11v6M22 11v6M8 20v3M16 20v3M8 6h.01M16 6h.01'
-  };
-  function icon(name,cls='') {return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[name]||paths.spark}"/></svg>`;}
-  function esc(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-  function dateKey(d=new Date()){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
-  function activeLessons(){return lessons.filter(l=>l.platforms.includes(state.platform));}
-  function todayCount(){return new Set(state.sessions.filter(s=>s.date===dateKey()).map(s=>s.lesson)).size;}
-  function save(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));storageOK=true;}catch{storageOK=false;}updateHeader();}
-  function announce(t){$('#announcer').textContent='';requestAnimationFrame(()=>$('#announcer').textContent=t);}
-  function toast(t){clearTimeout(toastTimer);$('#toast').textContent=t;$('#toast').hidden=false;toastTimer=setTimeout(()=>$('#toast').hidden=true,4200);}
-  function applyPreferences(){document.documentElement.classList.toggle('large-type',!!state.large);document.documentElement.classList.toggle('contrast',!!state.contrast);document.documentElement.classList.toggle('reduced-motion',!!state.motion);}
-  function updateHeader(){
-    $('#header-coins').textContent=state.coins;
-    $('.coin-pill').setAttribute('aria-label',`${state.coins} coins. View your milestones`);
-    $('#sound-toggle').innerHTML=icon(state.sound?'volume':'mute');
-    $('#sound-toggle').setAttribute('aria-label',`Turn reward sounds ${state.sound?'off':'on'}`);
-    $('#save-status').innerHTML=`<i></i>${storageOK?'Saved on this device':'Progress is temporary'}`;
-  }
-  function unlockAudio(){
-    if(!state.sound)return;
-    try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;if(!audioContext)audioContext=new AC();if(audioContext.state==='suspended')audioContext.resume().catch(()=>{});}catch{}
-  }
-  function ding(celebrate=false,force=false){
-    if(!state.sound&&!force)return;unlockAudio();if(!audioContext)return;
-    const tones={garden:[659.25,880],sunrise:[523.25,659.25,783.99],soft:[440,554.37]};
-    const notes=tones[state.tone]||tones.garden;
-    try{const now=audioContext.currentTime;notes.forEach((hz,i)=>{const o=audioContext.createOscillator(),g=audioContext.createGain();o.type='sine';o.frequency.value=hz*(celebrate?1.12:1);g.gain.setValueAtTime(0,now+i*.12);g.gain.linearRampToValueAtTime(Math.max(.001,state.volume*.16),now+i*.12+.015);g.gain.exponentialRampToValueAtTime(.001,now+i*.12+.55);o.connect(g);g.connect(audioContext.destination);o.start(now+i*.12);o.stop(now+i*.12+.6);});}catch{}
-  }
-  function speak(text){
-    if(!('speechSynthesis' in window)){toast('Spoken instructions are unavailable in this browser. Your screen reader can read the steps.');return;}
-    speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.rate=.85;u.volume=1;speechSynthesis.speak(u);
-  }
-  function platformControl(){return `<div class="platform-toggle" role="group" aria-label="Your phone"><button data-platform="ios" aria-pressed="${state.platform==='ios'}">${icon('apple')}iPhone</button><button data-platform="android" aria-pressed="${state.platform==='android'}">${icon('android')}Android</button></div>`;}
-  function intro(eyebrow,title,description,platform=true){return `<div class="page-intro"><div><div class="eyebrow">${eyebrow}</div><h1>${title}</h1><p class="intro-copy">${description}</p></div>${platform?platformControl():''}</div>`;}
-  function heroArt(){return `<div class="hero-art" aria-hidden="true"><svg viewBox="0 0 280 290" fill="none"><circle cx="177" cy="145" r="106" fill="#214c42"/><circle cx="177" cy="145" r="81" stroke="#426252" stroke-dasharray="3 7"/><path d="M46 232c23-34 20-58 11-81 26 13 37 37 27 64M51 241c8-35 6-63-8-78" fill="#6a8b63"/><path d="m41 230 40 22M56 211l19 18" stroke="#a4bd80" stroke-width="2"/><rect x="110" y="48" width="109" height="187" rx="20" fill="#dfe7d5" transform="rotate(12 110 48)"/><rect x="118" y="58" width="92" height="167" rx="13" fill="#31594b" transform="rotate(12 118 58)"/><rect x="144" y="59" width="36" height="9" rx="4.5" fill="#dfe7d5" transform="rotate(12 144 59)"/><circle cx="156" cy="139" r="31" fill="#c5d999" fill-opacity=".15"/><circle cx="156" cy="139" r="22" stroke="#bdd393" stroke-width="1.5"/><circle cx="156" cy="139" r="11" fill="#c9dc9d"/><path d="m152 138 5 28 12 17-4-30c-1-5 7-6 8-1l3 19-1-12c0-6 7-6 8-1l3 14v-7c0-5 7-5 8 0l3 29-3 29-39 12-13-18-15-16c-5-6 1-11 6-7l13 10-4-29-4-31c-1-8 9-10 11-2Z" fill="#e8d7b5" stroke="#c4b690" stroke-width="1.5" transform="rotate(-12 165 177)"/><path d="m82 69 6 11 12 2-10 8-1 13-9-9-13 3 5-12-6-11 13 1 3-6Z" fill="#c9db9a"/><path d="m232 212 3 8 9 3-8 4-3 9-4-8-9-3 9-4 3-9Z" fill="#c9db9a"/><circle cx="224" cy="69" r="4" fill="#8ba777"/><circle cx="80" cy="145" r="3" fill="#8ba777"/></svg></div>`;}
-  function goalCard(){
-    const done=todayCount(),today=new Date(),monday=new Date(today);monday.setDate(today.getDate()-((today.getDay()+6)%7));
-    const days=['M','T','W','T','F','S','S'].map((label,i)=>{const d=new Date(monday);d.setDate(d.getDate()+i);const key=dateKey(d),practiced=state.sessions.some(s=>s.date===key);return `<div class="week-day ${key===dateKey()?'today':''} ${practiced?'done':''}" aria-label="${d.toLocaleDateString(undefined,{weekday:'long'})}${practiced?', practiced':''}${key===dateKey()?', today':''}">${label}<span aria-hidden="true">${practiced?'✓':key===dateKey()?'·':''}</span></div>`;}).join('');
-    return `<aside class="goal-card" aria-label="Daily practice goal"><div class="section-eyebrow">A LITTLE EVERY DAY</div><h3>Make room for a little growth.</h3><div class="goal-center"><div class="goal-ring" role="img" aria-label="${done} of 3 lessons practiced today"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="42" fill="none" stroke="#eef1e7" stroke-width="7"/><circle cx="50" cy="50" r="42" fill="none" stroke="#92aa71" stroke-width="7" stroke-linecap="round" stroke-dasharray="${Math.min(done/3,1)*264} 264"/></svg><div class="ring-copy" aria-hidden="true">${done}<small>/ 3</small></div></div><p><strong>${done>=3?'Look at you grow!':'Your daily goal'}</strong>${done>=3?'A lovely bit of progress.':'Three little lessons. One good feeling.'}</p></div><div class="week" aria-label="This week">${days}</div></aside>`;
-  }
-  function filters(){return `<div class="filters" role="group" aria-label="Filter lessons">${['All','Basics','Everyday','Next steps'].map(v=>`<button class="filter" data-filter="${v}" aria-pressed="${filter===v}">${({All:'All gestures',Basics:'The basics',Everyday:'Everyday skills','Next steps':'Next steps'})[v]}</button>`).join('')}</div>`;}
-  function lessonCards(limit){const list=activeLessons().filter(l=>filter==='All'||l.category===filter);return `<div class="lesson-grid">${list.slice(0,limit).map((l,i)=>`<a class="lesson-card ${state.completed[l.id]?'done':''}" href="#lesson/${l.id}" aria-label="${esc(l.title)}, ${esc(l.subtitle)}, ${l.minutes} minutes${state.completed[l.id]?', practiced':''}"><div class="card-top"><span>LESSON ${String(activeLessons().indexOf(l)+1).padStart(2,'0')}</span><span class="lesson-state">${state.completed[l.id]?icon('check')+'Practiced':l.gesture.kind==='guided'?'Guided lesson':i===0?'A lovely place to start':'At your pace'}</span></div><span class="lesson-icon">${icon(l.icon)}</span><h3>${esc(l.title)}</h3><p>${esc(l.subtitle)}</p><div class="lesson-meta"><span>${icon('clock')}${l.minutes} min</span><span class="card-coin">✦ ${state.completed[l.id]?'Earned':`+${l.coins} coins`}</span><span class="arrow">${icon('arrow')}</span></div></a>`).join('')||'<p class="empty">More lessons are growing here soon.</p>'}</div>`;}
-  function renderHome(){const next=activeLessons().find(l=>!state.completed[l.id])||activeLessons()[0];main.innerHTML=intro('YOUR OWN PACE. YOUR NEXT CHAPTER.','Small gestures.<br>Big possibilities.','Build confidence with your phone, one little win at a time.')+`<div class="home-top"><section class="hero"><div class="hero-copy"><div class="eyebrow">WEEK 1 · THE FOUNDATIONS</div><h2>Your next<br>little win.</h2><p>${Object.keys(state.completed).length?'Ready for another small step? Pick up where you left off.':'A tap is all it takes to begin. Let’s get comfortable with the basics.'}</p><div class="hero-bottom"><a href="#lesson/${next.id}" class="button lime">${Object.keys(state.completed).length?'Keep growing':'Let’s practice'}${icon('arrow')}</a><span class="hero-meta">${next.minutes} min · +${state.completed[next.id]?0:next.coins} coins</span></div></div>${heroArt()}</section>${goalCard()}</div><div class="section-head"><div><h2>Your learning path</h2><p>Little lessons. Real-world confidence.</p></div><a class="button text" href="#practice">Explore all ${activeLessons().length} ${icon('arrow')}</a></div>${filters()}${lessonCards(6)}<aside class="bottom-banner"><span class="banner-icon">${icon('volume')}</span><div><h3>A little ding. A lovely feeling.</h3><p>Celebrate every step with a sound that makes you smile.</p></div><button class="button text" data-action="test-sound">Try your reward sound ${icon('arrow')}</button></aside>`;}
-  function renderPractice(){main.innerHTML=intro('THE WORLD IS AT YOUR FINGERTIPS','A little practice goes a long way.','Choose a gesture. Take your time. Every lesson is open to you.')+`<div class="bottom-banner" style="margin:0 0 25px"><span class="banner-icon">${icon('help')}</span><div><h3>Two ways to grow your confidence.</h3><p>Guided lessons work with your screen reader. The touch pad rehearses movements when your browser can receive them.</p></div></div>${filters()}${lessonCards(99)}`;}
-  const badges=[{title:'First little win',desc:'Practice your first lesson.',symbol:'✧',count:1},{title:'Finding your rhythm',desc:'Practice three different skills.',symbol:'♧',count:3},{title:'Growing confidence',desc:'Practice six different skills.',symbol:'✳',count:6},{title:'In full bloom',desc:'Practice ten different skills.',symbol:'❋',count:10},{title:'Back for more',desc:'Practice on three different days.',symbol:'☀',days:3},{title:'A lovely habit',desc:'Practice on seven different days.',symbol:'✺',days:7}];
-  function renderRewards(){const count=Object.keys(state.completed).length,days=new Set(state.sessions.map(s=>s.date)).size;main.innerHTML=intro('LOOK HOW FAR YOU’VE COME','Good things are growing.','A collection of your little wins. You’ve earned every one.',false)+`<div class="stat-row"><div class="stat-box"><strong>${state.coins}</strong><span>coins collected</span></div><div class="stat-box"><strong>${count}</strong><span>skills practiced</span></div><div class="stat-box"><strong>${days}</strong><span>days of growth</span></div></div><div class="simple-grid"><section class="panel"><h2>Your milestones</h2><p>Practice at your pace. Your progress is always yours.</p><div class="badge-grid" style="margin-top:23px">${badges.map(b=>{const earned=b.days?days>=b.days:count>=b.count;return `<div class="badge ${earned?'earned':''}"><span class="badge-art" aria-hidden="true">${b.symbol}</span><h3>${b.title}</h3><p>${b.desc}</p><p>${earned?'✓ Earned':'Still growing'}</p></div>`;}).join('')}</div></section><section class="panel"><div class="lesson-icon">${icon('volume')}</div><h2>Your little celebration</h2><p>Find your favorite ding. All sounds are yours to enjoy, with no coins to spend.</p><div class="tone-options" role="group" aria-label="Reward sound">${Object.entries({garden:['♧','Garden bells'],sunrise:['☀','Sunrise'],soft:['✧','Soft sparkle']}).map(([key,[sym,name]])=>`<button class="tone-button" data-tone="${key}" aria-pressed="${state.tone===key}"><span aria-hidden="true">${sym}</span>${name}</button>`).join('')}</div><button class="button secondary" data-action="test-sound">${icon('play')}Play my sound</button><p class="muted-note">Coins celebrate first-time practice. Repeating a lesson keeps your skills fresh without changing your balance.</p></section></div>`;}
-  function renderClass(){main.innerHTML=intro('A LITTLE ENCOURAGEMENT, TOGETHER','Everyone has room to grow.','A friendly peek at what a future BISM class could look like.',false)+`<div class="simple-grid"><section class="panel"><span class="demo-tag">SAMPLE CLASS · NOT LIVE</span><h2>The encouragement board</h2><p>A possible class view. The sample learners below are fictional; your row shows your device’s progress.</p><table class="class-table"><caption class="sr-only">Sample class practice board, not a live leaderboard</caption><thead><tr><th scope="col">LEARNER</th><th scope="col">SKILLS PRACTICED</th><th scope="col">COINS</th></tr></thead><tbody><tr><td>🌿 Sample: Alex</td><td>6</td><td>145</td></tr><tr><td>🌼 Sample: Sam</td><td>4</td><td>95</td></tr><tr class="me"><td>🌱 You · this device</td><td>${Object.keys(state.completed).length}</td><td>${state.coins}</td></tr></tbody></table><p class="muted-note">No names or progress are shared. A real class board would be optional and use learner-chosen nicknames.</p></section><section class="panel"><div class="lesson-icon">${icon('users')}</div><h2>More cheering. Less comparing.</h2><p>We’re building toward a shared class garden: a place to encourage steady practice and celebrate everyone’s independence.</p><div class="bottom-banner" style="display:block"><h3>Planned for a future version</h3><p>Trainer-led classes, optional nicknames, shared goals, and progress that follows you between devices.</p></div><a class="button primary" style="margin-top:23px" href="#practice">Find your next little win ${icon('arrow')}</a></section></div>`;}
-  function renderSettings(){main.innerHTML=intro('YOUR GARDEN. YOUR WAY.','Make yourself comfortable.','A few little adjustments can make a big difference.',false)+`<div class="simple-grid"><section class="panel"><h2>Look & feel</h2>${setting('large','Larger lesson text','A little more room for the words that matter.')}${setting('contrast','Stronger contrast','Darker text and clearer outlines.')}${setting('motion','Less movement','Keep transitions still. Your device setting is also respected.')}<div class="setting-row"><label for="phone-select">Your phone<small>Lessons use the gestures for your screen reader.</small></label><select id="phone-select"><option value="ios" ${state.platform==='ios'?'selected':''}>iPhone · VoiceOver</option><option value="android" ${state.platform==='android'?'selected':''}>Android · TalkBack</option></select></div></section><section class="panel"><h2>Sounds & encouragement</h2>${setting('sound','Reward sounds','A soft ding for each practice step. Always optional.')}<div class="setting-row"><label for="sound-volume">Ding volume<small>The phone’s volume also affects what you hear.</small></label><input type="range" id="sound-volume" min="0" max="100" value="${state.volume*100}" aria-label="Reward volume"></div><button class="button secondary" data-action="test-sound" style="margin-top:17px">${icon('play')}Try a little ding</button><p class="muted-note">Spoken instructions play only when you choose “Hear instructions,” so they don’t automatically speak over VoiceOver or TalkBack.</p></section><section class="panel"><h2>Keep your little wins</h2><p>Progress stays in this browser on this device. Clearing website data removes it. Installing on your home screen may use separate storage.</p><button class="button secondary" data-action="export" style="margin-top:19px">Download my progress</button><p class="muted-note">The download is a personal record. Import and cross-device sync are planned.</p></section><section class="panel"><h2>A place on your home screen</h2><p>Open Gesture Garden straight from your iPhone, like an app. Lessons can work offline once this device has saved the app.</p><button class="button secondary" data-action="install" style="margin-top:19px">${icon('phone')}How to add the app</button><p class="muted-note" id="offline-status">Checking offline availability…</p></section></div>`;updateOfflineStatus();}
-  function setting(key,title,desc){return `<div class="setting-row"><label for="pref-${key}">${title}<small>${desc}</small></label><input class="switch" type="checkbox" id="pref-${key}" data-pref="${key}" ${state[key]?'checked':''}></div>`;}
-  function renderLesson(id){
-    const lesson=activeLessons().find(l=>l.id===id);
-    if(!lesson){main.innerHTML=intro('A DIFFERENT PATH','Choose a lesson for your phone.','This lesson is not available for the phone you’ve selected.',false)+'<a class="button primary" href="#practice">View my lessons</a>';return;}
-    session={lesson,mode:'guided',reps:0,busy:false};renderSession();
-  }
-  function renderSession(){
-    if(detachPad){detachPad();detachPad=null;}clearTimeout(sessionTimer);
-    const {lesson:l,mode,reps}=session, raw=mode==='touch';
-    main.innerHTML=`<div class="lesson-view"><a href="#practice" class="back-link">${icon('back')}Back to your learning path</a><div class="eyebrow">${state.platform==='ios'?'IPHONE · VOICEOVER':'ANDROID · TALKBACK'} · ${l.category.toUpperCase()}</div><div class="lesson-title-row"><div><h1>${esc(l.title)}</h1><p>${esc(l.instructions[state.platform]||l.instructions.ios)}</p></div><span class="lesson-icon">${icon(l.icon)}</span></div><div class="mode-switch" role="group" aria-label="Practice mode"><button data-mode="guided" aria-pressed="${!raw}">Guided · screen reader friendly</button>${l.gesture.kind!=='guided'?`<button data-mode="touch" aria-pressed="${raw}">Touch practice pad</button>`:''}</div><p class="mode-note">${raw?'The pad listens for finger movements. VoiceOver or TalkBack may capture them before this page can. Use Guided mode whenever you want to keep your screen reader on.': 'Keep your screen reader on. Follow each step at your pace, then confirm your practice. Guided progress is self-reported; the app cannot inspect system gestures.'}</p><div class="session-grid"><section class="practice-panel" aria-label="Practice activity"><div class="practice-progress"><span id="rep-label">Your practice · ${reps} of 3 steps</span><div class="rep-dots" aria-hidden="true">${[0,1,2].map(i=>`<i class="${i<reps?'on':''}"></i>`).join('')}</div></div><div id="gesture-pad" class="pad ${raw?'touch-pad':''}" ${raw?'role="region" tabindex="0" aria-label="Touch gesture practice area. Use the Guided mode button for a screen reader alternative."':''}><span class="pad-icon">${icon(l.icon)}</span><h2 id="pad-title">${raw?'Give it a little try.':`One small step. ${reps+1} of 3.`}</h2><p id="pad-instruction">${raw?esc(l.subtitle):esc(l.steps[reps])}</p>${raw?'':`<button class="button primary" data-action="confirm-step">I’ve practiced this step ${icon('check')}</button>`}</div><div id="practice-feedback" class="feedback" role="status" aria-live="polite">${raw?'Take your time. This is a space to practice.':'There is no timer. Repeat any step as often as you like.'}</div><div class="practice-controls"><button data-action="hear">${icon('volume')}Hear instructions</button><button data-action="restart">${icon('rotor')}Start again</button></div></section><aside class="step-panel"><h3>A little guidance</h3><ol class="steps">${l.steps.map(s=>`<li>${esc(s)}</li>`).join('')}</ol><p class="reality-note">${esc(l.modeNote||'A practice movement is a first step. Try the real action with your screen reader when you feel ready.')}</p></aside></div><aside class="bottom-banner session-mission"><span class="banner-icon">${icon('leaf')}</span><div><h3>Let it grow into everyday life.</h3><p>${esc(l.mission)}</p></div></aside></div>`;
-    if(raw&&window.GestureEngine)detachPad=GestureEngine.attach($('#gesture-pad'),{getExpected:()=>l.gesture,onGesture:result=>{
-      if(session.busy)return;
-      if(GestureEngine.matches(result,l.gesture))advanceStep();else{$('#practice-feedback').textContent=result.kind==='unknown'?'A little hard to read. Try a clearer movement, or switch to Guided mode.':`I noticed ${result.fingers} finger${result.fingers===1?'':'s'}${result.kind==='tap'?` and ${result.taps} tap${result.taps===1?'':'s'}`:''}. Try the movement above again. You have all the time you need.`;}
-    },onActivity:({points,active})=>{const pad=$('#gesture-pad');if(!pad)return;pad.querySelectorAll('.touch-point').forEach(e=>e.remove());if(active)points.forEach(p=>{const dot=document.createElement('span');dot.className='touch-point';dot.style.left=p.x+'px';dot.style.top=p.y+'px';dot.setAttribute('aria-hidden','true');pad.append(dot);});}});
-  }
-  function advanceStep(){
-    if(!session||session.busy)return;session.busy=true;session.reps++;ding();
-    const reps=session.reps;$('#rep-label').textContent=`Your practice · ${reps} of 3 steps`;
-    document.querySelectorAll('.rep-dots i').forEach((dot,i)=>dot.classList.toggle('on',i<reps));
-    $('#gesture-pad').classList.add('success');$('#practice-feedback').textContent=reps===3?'Three little steps. A lovely bit of progress!':`Lovely. ${reps} ${reps===1?'step':'steps'} practiced. Keep going at your pace.`;
-    if(reps===3){const confirm=$('[data-action="confirm-step"]');if(confirm)confirm.disabled=true;sessionTimer=setTimeout(completeLesson,900);return;}
-    if(session.mode==='guided'){$('#pad-title').textContent=`One small step. ${reps+1} of 3.`;$('#pad-instruction').textContent=session.lesson.steps[reps];$('#practice-feedback').textContent=`Lovely. Next step: ${session.lesson.steps[reps]}`;}
-    sessionTimer=setTimeout(()=>{if(!session)return;session.busy=false;$('#gesture-pad')?.classList.remove('success');},700);
-  }
-  function completeLesson(){
-    if(!session)return;if(detachPad){detachPad();detachPad=null;}
-    const l=session.lesson,mode=session.mode,first=!state.completed[l.id],reward=first?l.coins:0;
-    const record={date:dateKey(),lesson:l.id,mode,at:new Date().toISOString()};
-    state.completed[l.id]={...state.completed[l.id],...record};state.sessions.push(record);state.sessions=state.sessions.slice(-1500);state.coins+=reward;save();ding(true);
-    const next=activeLessons().find(x=>!state.completed[x.id]&&x.id!==l.id);
-    main.innerHTML=`<div class="result"><div class="result-flower" aria-hidden="true">❋</div><div class="eyebrow">A LITTLE WIN, ALL YOURS</div><h1>Look at you grow.</h1><p>You practiced “${esc(l.title)}.”<br>That’s another step toward feeling at home with your phone.</p>${reward?`<div class="reward-amount"><span aria-hidden="true">✦</span>+${reward} coins</div>`:'<div class="reward-amount">A little more confidence.</div>'}<div class="panel"><span class="demo-tag">${mode==='guided'?'GUIDED · SELF-REPORTED PRACTICE':'TOUCH PATTERN PRACTICED'}</span><h3>Try a little real-world magic.</h3><p>${esc(l.mission)}</p><p class="muted-note">${mode==='guided'?'You confirmed the three practice steps.':'The browser recognized the practice movement.'} Your phone’s real action is a separate step to try with your screen reader.</p></div><div class="result-actions">${next?`<a class="button primary" href="#lesson/${next.id}">One more little win ${icon('arrow')}</a>`:''}<a class="button secondary" href="#home">Back to my garden</a></div><button class="button text" data-action="repeat" style="margin-top:17px">Practice this lesson again</button></div>`;
-    focusMain();announce(`Lesson practiced. ${reward?reward+' coins earned.':'Your practice is saved.'}`);
-  }
-  function focusMain(){main.focus({preventScroll:true});window.scrollTo({top:0,behavior:'instant'});}
-  function route(){
-    if(detachPad){detachPad();detachPad=null;}clearTimeout(sessionTimer);session=null;
-    if('speechSynthesis' in window)speechSynthesis.cancel();
-    const hash=location.hash.slice(1)||'home';const page=hash.split('/')[0];
-    document.querySelectorAll('[data-nav]').forEach(a=>{if(a.dataset.nav===(page==='lesson'?'practice':page))a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
-    ({home:renderHome,practice:renderPractice,rewards:renderRewards,class:renderClass,settings:renderSettings}[page]||(page==='lesson'?()=>renderLesson(hash.split('/')[1]):renderHome))();
-    document.title=`${({home:'My garden',practice:'Practice',rewards:'My milestones',class:'Our class',settings:'Make it yours',lesson:'Practice a gesture'})[page]||'Gesture Garden'} · BISM Gesture Garden`;
-    focusMain();
-  }
-  function showDialog(title,body){$('#dialog-content').innerHTML=`<h2 id="dialog-title">${title}</h2>${body}`;$('#info-dialog').showModal();}
-  function installHelp(){showDialog('A little home on your phone.',`<p>On iPhone, open this app’s HTTPS address in Safari.</p><ol><li>Open Safari’s <strong>Share</strong> menu (or More, then Share).</li><li>Choose <strong>Add to Home Screen</strong>. You may need to scroll.</li><li>Keep <strong>Open as Web App</strong> on if it appears, then choose <strong>Add</strong>.</li></ol><p>Open the new icon while connected once to save lessons for offline practice. On Android, use your browser’s “Install app” or “Add to Home screen” option.</p><p class="muted-note">Your home-screen app may keep progress separately from Safari. Export progress in preferences for a personal record.</p>`);}
-  function help(){showDialog('A helping hand.',`<p>Gesture Garden is a gentle place to learn VoiceOver and TalkBack gestures.</p><ol><li>Choose your phone, then open a lesson.</li><li>Start with <strong>Guided</strong> mode. Keep your screen reader on and confirm each step at your pace.</li><li>If your browser receives touch gestures, try the <strong>Touch practice pad</strong>. It checks movement, not actions outside this app.</li></ol><p>No timers. No lost coins. Every lesson is open. System actions such as Screen Curtain and the App Switcher are guided with a trainer.</p><p class="muted-note">This is an early prototype. Real iPhone VoiceOver and PWA testing with BISM learners is a release requirement.</p>`);}
-  async function updateOfflineStatus(){const el=$('#offline-status');if(!el)return;if(!('serviceWorker' in navigator)){el.textContent='Offline saving is not available in this browser.';return;}try{const reg=await navigator.serviceWorker.getRegistration();if(el.isConnected)el.textContent=reg?.active?'App saved for offline practice on this device.':'Open the app online once and allow a moment for offline saving.';}catch{el.textContent='Offline saving requires an HTTPS address or localhost.';}}
-  document.addEventListener('pointerdown',unlockAudio,{capture:true});
-  document.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' ')unlockAudio();});
-  $('#sound-toggle').addEventListener('click',()=>{state.sound=!state.sound;save();if(state.sound)ding();toast(`Reward sounds ${state.sound?'on':'off'}.`);});
-  $('.skip-link').addEventListener('click',e=>{e.preventDefault();focusMain();});
-  $('#help-button').addEventListener('click',help);$('#install-button').addEventListener('click',installHelp);$('#dialog-close').addEventListener('click',()=>$('#info-dialog').close());
-  $('#info-dialog').addEventListener('click',e=>{if(e.target===$('#info-dialog')){const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)e.target.close();}});
-  main.addEventListener('click',e=>{
-    const phone=e.target.closest('[data-platform]');if(phone){state.platform=phone.dataset.platform;filter='All';save();route();return;}
-    const f=e.target.closest('[data-filter]');if(f){filter=f.dataset.filter;const restoreScroll=window.scrollY;const page=location.hash.slice(1)||'home';page==='home'?renderHome():renderPractice();const selected=$(`[data-filter="${filter}"]`);selected?.focus({preventScroll:true});window.scrollTo(0,restoreScroll);return;}
-    const mode=e.target.closest('[data-mode]');if(mode&&session){if(mode.dataset.mode===session.mode)return;session.mode=mode.dataset.mode;session.reps=0;session.busy=false;renderSession();$(`[data-mode="${session.mode}"]`)?.focus({preventScroll:true});return;}
-    const tone=e.target.closest('[data-tone]');if(tone){state.tone=tone.dataset.tone;state.sound=true;save();ding();document.querySelectorAll('[data-tone]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tone===state.tone)));return;}
-    const action=e.target.closest('[data-action]')?.dataset.action;
-    if(action==='confirm-step')advanceStep();
-    if(action==='test-sound'){if(!state.sound){toast('Reward sounds are off. Turn them on with the sound button above.');return;}ding();}
-    if(action==='hear'&&session)speak(`${session.lesson.title}. ${session.lesson.instructions[state.platform]}. ${session.lesson.steps.join('. ')}`);
-    if((action==='restart'||action==='repeat')&&session){session.reps=0;session.busy=false;renderSession();$('[data-action="restart"]')?.focus({preventScroll:true});announce('Practice restarted. Take your time.');}
-    if(action==='install')installHelp();
-    if(action==='export'){const data=JSON.stringify({app:'BISM Gesture Garden',exported:new Date().toISOString(),...state},null,2);const url=URL.createObjectURL(new Blob([data],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=`gesture-garden-progress-${dateKey()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Your progress record is ready to save.');}
-  });
-  main.addEventListener('change',e=>{
-    if(e.target.dataset.pref){const key=e.target.dataset.pref;state[key]=e.target.checked;applyPreferences();save();if(key==='sound'&&state.sound)ding();}
-    if(e.target.id==='phone-select'){state.platform=e.target.value;filter='All';save();toast(`Lessons set to ${state.platform==='ios'?'iPhone · VoiceOver':'Android · TalkBack'}.`);}
-    if(e.target.id==='sound-volume'){state.volume=Number(e.target.value)/100;save();ding();}
-  });
-  window.addEventListener('hashchange',route);
-  window.addEventListener('offline',()=>toast('You’re offline. Saved lessons are still here for you.'));
-  window.addEventListener('online',()=>toast('You’re back online. Welcome back.'));
-  window.addEventListener('pagehide',()=>{if('speechSynthesis' in window)speechSynthesis.cancel();});
-  if('serviceWorker' in navigator&&(location.protocol==='https:'||['localhost','127.0.0.1'].includes(location.hostname))){window.addEventListener('load',()=>{navigator.serviceWorker.register('./sw.js').then(reg=>{updateOfflineStatus();reg.addEventListener('updatefound',()=>{const worker=reg.installing;worker?.addEventListener('statechange',()=>{if(worker.state==='installed'&&navigator.serviceWorker.controller)toast('An update is ready. Close all app windows and reopen when you finish.');if(worker.state==='activated')updateOfflineStatus();});});}).catch(()=>{if($('#offline-status'))$('#offline-status').textContent='Offline saving could not finish. Please reopen online and try again.';});});}
-  document.querySelectorAll('[data-icon]').forEach(el=>el.innerHTML=icon(el.dataset.icon));applyPreferences();updateHeader();route();
+'use strict';
+const $=s=>document.querySelector(s), main=$('#main'), C=window.PracticeCore, all=window.GESTURE_LESSONS;
+const KEY='bism-gesture-practice-v2';
+let prefs={platform:'ios',sound:false,volume:.25,large:false,contrast:false,touch:false}, history=[], run=null, current=null, cleanup=null, audio=null, mediaUrl=null;
+try{const saved=JSON.parse(localStorage.getItem(KEY)||'null');if(saved){for(const k of ['sound','large','contrast','touch'])if(typeof saved.prefs?.[k]==='boolean')prefs[k]=saved.prefs[k];if(['ios','android'].includes(saved.prefs?.platform))prefs.platform=saved.prefs.platform;if(Number.isFinite(saved.prefs?.volume))prefs.volume=Math.max(0,Math.min(1,saved.prefs.volume));if(Array.isArray(saved.history))history=saved.history.slice(-300);}}catch{$('#storage-note').hidden=false;}
+function save(){try{localStorage.setItem(KEY,JSON.stringify({prefs,history}));$('#storage-note').hidden=true;}catch{$('#storage-note').hidden=false;}}
+function escape(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function available(){return all.filter(l=>l.platforms.includes(prefs.platform));}
+function apply(){document.documentElement.classList.toggle('large',prefs.large);document.documentElement.classList.toggle('contrast',prefs.contrast);}
+function clear(){if(cleanup){cleanup();cleanup=null;}const player=$('audio');if(player)player.pause();if(mediaUrl){URL.revokeObjectURL(mediaUrl);mediaUrl=null;}const dialog=$('dialog');if(dialog?.open)dialog.close();}
+function focus(selector='h1'){const el=$(selector)||main;el.focus({preventScroll:true});window.scrollTo(0,0);}
+function status(text){$('#status').textContent=text;}
+function unlock(){if(!prefs.sound)return;try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;audio=audio||new AC();if(audio.state==='suspended')audio.resume().catch(()=>{});}catch{}}
+function ding(){if(!prefs.sound)return;unlock();if(!audio)return;try{[660,880].forEach((hz,i)=>{const o=audio.createOscillator(),g=audio.createGain(),t=audio.currentTime+i*.13;o.frequency.value=hz;g.gain.setValueAtTime(.001,t);g.gain.linearRampToValueAtTime(Math.max(.001,prefs.volume*.15),t+.02);g.gain.exponentialRampToValueAtTime(.001,t+.35);o.connect(g);g.connect(audio.destination);o.start(t);o.stop(t+.4);});}catch{}}
+const heading=text=>`<h1 tabindex="-1">${escape(text)}</h1>`;
+const button=(action,text,primary=false)=>`<button data-action="${action}" class="${primary?'primary':''}">${text}</button>`;
+function details(text){return text?`<details><summary>More guidance</summary><p>${escape(text)}</p></details>`:'';}
+function home(){main.innerHTML=heading('Choose an activity')+`<nav class="home-grid" aria-label="Activities"><a class="button" href="#tutorial">Guided Tutorial</a><a class="button" href="#lessons">Lessons</a><a class="button" href="#quiz">Quiz / Testing Area</a><a class="button" href="#settings">Settings</a></nav>`;}
+function tutorialIntro(){main.innerHTML=heading('Guided Tutorial')+`<p>Keep your screen reader on.</p><p>We’ll guide you through four basic gestures. No need to choose a lesson.</p>${button('start-tutorial','Start tutorial',true)}`;}
+function lessonList(){main.innerHTML=heading('Lessons')+`<label class="field" for="lesson-choice">Choose a gesture<select id="lesson-choice">${available().map(l=>`<option value="${l.id}">${escape(l.title)}</option>`).join('')}</select></label>${button('start-lesson','Start lesson',true)}`;}
+function quizIntro(){main.innerHTML=heading('Quiz / Testing Area')+`<p>Five random tasks. No timer.</p><p>Use “Help me learn” whenever you need it.</p><p class="note">Some system actions can only be confirmed by you. This is practice, not a certified test.</p>${button('start-quiz','Start quiz',true)}`;}
+function settings(){main.innerHTML=heading('Settings')+`<label class="field" for="platform">Phone<select id="platform"><option value="ios" ${prefs.platform==='ios'?'selected':''}>iPhone · VoiceOver</option><option value="android" ${prefs.platform==='android'?'selected':''}>Android · TalkBack</option></select></label>${[['sound','Reward sounds'],['large','Larger text'],['contrast','Black-and-white controls'],['touch','Offer touch-pad practice']].map(([key,label])=>`<label class="setting"><input type="checkbox" data-pref="${key}" ${prefs[key]?'checked':''}>${label}</label>`).join('')}<label class="field" for="volume">Reward volume<input id="volume" type="range" min="0" max="100" value="${prefs.volume*100}"></label>${button('sound-test','Test reward sound')}<details><summary>About touch-pad practice</summary><p>The screen reader may capture gestures before this page receives them. The normal exercises work with your screen reader on. Touch-pad results check movements only.</p></details><details><summary>Install on iPhone</summary><p>Open the HTTPS site in Safari. Choose Share, Add to Home Screen, then Add. Keep Open as Web App on if shown. Open online once before using offline.</p></details><details><summary>Progress and privacy</summary><p>Practice records stay on this device. The earlier Garden progress is preserved separately. No class board or account is used.</p></details><p id="offline-info" class="note"></p>`;offlineInfo();}
+function start(l,flow='lesson'){clear();current={lesson:l,flow,help:false,done:false,mode:'native',kind:null};renderExercise();}
+function samples(){return `<div class="sample-buttons" role="group" aria-label="Drinks"><button data-sample="Tea">Tea</button><button data-sample="Coffee">Coffee</button><button data-sample="Water">Water</button></div>`;}
+function nativeExercise(l){
+if(l.type==='activate')return button('activate','Play',true);
+if(l.type==='adjust')return `<label class="field" for="practice-slider">Practice volume<input id="practice-slider" type="range" min="0" max="100" step="10" value="50"></label><output id="slider-value" for="practice-slider">50 percent</output>`;
+if(['explore','navigate','group'].includes(l.type))return samples();
+if(l.type==='read')return `<div class="sample-text"><p>The garden is quiet today.</p><p>The birds are singing.</p><p>There is time to enjoy the morning.</p></div>`;
+if(l.type==='scroll')return `<div class="scroll-demo" tabindex="0" role="region" aria-label="Practice days list"><p>Monday</p><p>Tuesday</p><p>Wednesday</p><p>Thursday</p><p>Friday</p><p>Saturday</p><p>Sunday</p></div>`;
+if(l.type==='dismiss')return `${button('open-alert','Open practice alert')}<dialog aria-labelledby="alert-title"><h2 id="alert-title">Practice alert</h2><p>Try the two-finger Z gesture. Or choose Close alert.</p>${button('close-alert','Close alert')}</dialog>`;
+if(l.type==='media')return `<label for="practice-audio">Practice audio</label><audio id="practice-audio" controls loop aria-label="Practice audio"></audio>`;
+return '<p>Practice on your phone with a trainer, then return here.</p>';
+}
+function renderExercise(){
+clear();const s=current,l=s.lesson,testing=s.flow==='quiz'&&!s.help;
+const count=s.flow==='tutorial'?`Tutorial ${run.index+1} of ${run.tasks.length}`:s.flow==='quiz'?`Task ${run.index+1} of ${run.tasks.length}`:'Lesson';
+main.innerHTML=`<p class="context">${count}${s.help?' · Guided practice':''}</p>`+heading(testing?'Try this task':l.title)+`<p id="instruction" tabindex="-1">${escape(testing?l.task:l.instruction)}</p>${l.type==='system'?`<p class="note">${escape(l.note)}</p>`:''}<section class="exercise" aria-label="Practice area">${s.mode==='touch'?'<div id="touch-pad" class="touch-pad" tabindex="0" role="region" aria-label="Touch practice pad">Practice the movement here.</div>':nativeExercise(l)}</section><div id="result" class="feedback" role="status" aria-live="polite" aria-atomic="true"></div><div id="exercise-actions" class="actions">${!['activate','adjust'].includes(l.type)||s.mode==='touch'?button('report','I practiced it'):''}${testing?button('help','Help me learn'):button('repeat-instruction','Repeat instruction')}${testing?button('skip','Skip this task'):''}</div>${prefs.touch?`<div class="actions">${button('mode',s.mode==='touch'?'Use screen-reader exercise':'Use touch pad')}</div><p class="note">${s.mode==='touch'?'The pad checks movement only. The screen reader may intercept touches. “I practiced it” records your own confirmation.':'Screen-reader exercises are the default.'}</p>`:''}${l.type!=='system'?details(l.note):''}`;
+if(s.mode==='touch'&&window.GestureEngine)cleanup=GestureEngine.attach($('#touch-pad'),{onGesture:r=>{if(current!==s||s.done)return;if(GestureEngine.matches(r,l.gesture))complete('observed','Touch pattern recognized. System action not checked.');else $('#result').textContent='Try again, or use the screen-reader exercise.';},onActivity:({points,active})=>{const pad=$('#touch-pad');if(!pad)return;pad.querySelectorAll('.finger').forEach(e=>e.remove());if(active)points.forEach(p=>{const dot=document.createElement('span');dot.className='finger';dot.style.left=p.x+'px';dot.style.top=p.y+'px';dot.setAttribute('aria-hidden','true');pad.append(dot);});}});
+if(s.mode==='native'&&l.type==='media')$('#practice-audio').src=makeAudio();
+if(s.mode==='native'&&l.type==='dismiss'){$('dialog').addEventListener('close',()=>{if(current!==s||s.done)return;$('#result').textContent='Alert closed. Confirm below if you practiced the gesture.';$('[data-action="open-alert"]')?.focus();});}
+focus();
+}
+function complete(kind,message){
+if(!current||current.done)return;current.done=true;current.kind=kind;if(cleanup){cleanup();cleanup=null;}
+const modeControl=$('[data-action="mode"]');if(modeControl)modeControl.parentElement.hidden=true;
+$('#result').textContent=message||'Practice recorded. You confirmed this yourself.';
+if(current.help){$('#exercise-actions').innerHTML=button('retry','Try the task again',true);$('#exercise-actions button').focus({preventScroll:true});ding();return;}
+history.push({lesson:current.lesson.id,platform:prefs.platform,kind,flow:current.flow,at:new Date().toISOString()});history=history.slice(-300);save();
+if(current.flow==='quiz')run=C.record(run,kind);
+$('#exercise-actions').innerHTML=button('next',current.flow==='lesson'?'Back to lessons':'Continue',true);
+// Keep a usable focus location when replacing the confirmation controls.
+$('#exercise-actions button').focus({preventScroll:true});
+ding();
+}
+function next(){const flow=current.flow;clear();if(flow==='lesson'){location.hash='lessons';return;}if(flow==='tutorial')run.index++;if(run.index>=run.tasks.length){finish(flow);return;}start(all.find(l=>l.id===run.tasks[run.index]),flow);}
+function finish(flow){clear();current=null;if(flow==='tutorial'){main.innerHTML=heading('Tutorial complete')+'<p>You practiced four basic gestures.</p><div class="actions"><a class="button primary" href="#lessons">Choose a lesson</a><a class="button" href="#home">Home</a></div>';}
+else{const summary=C.summary(run);main.innerHTML=heading('Practice summary')+`<p>${summary.practiced} tasks practiced. ${summary.review.length} to review.</p><p class="note">${summary.observed} browser actions or touch patterns observed. ${summary.reported} confirmed by you. System gestures cannot be graded by this app.</p>${summary.review.length?'<h2>Review these lessons</h2><ul class="review-list">'+summary.review.map(id=>`<li><a href="#lesson/${id}">${escape(all.find(l=>l.id===id).title)}</a></li>`).join('')+'</ul>':''}<div class="actions">${button('start-quiz','Try another quiz',true)}<a class="button" href="#home">Home</a></div>`;}focus();}
+function makeAudio(){const rate=16000,seconds=8,n=rate*seconds,buffer=new ArrayBuffer(44+n*2),v=new DataView(buffer);const put=(offset,text)=>[...text].forEach((c,i)=>v.setUint8(offset+i,c.charCodeAt(0)));put(0,'RIFF');v.setUint32(4,36+n*2,true);put(8,'WAVE');put(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,rate,true);v.setUint32(28,rate*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);put(36,'data');v.setUint32(40,n*2,true);for(let i=0;i<n;i++){const t=i/rate,beat=t%1,envelope=Math.min(1,beat*30)*Math.max(0,1-beat*1.8);v.setInt16(44+i*2,Math.sin(2*Math.PI*[440,554,659,554][Math.floor(t)%4]*t)*envelope*4000,true);}mediaUrl=URL.createObjectURL(new Blob([buffer],{type:'audio/wav'}));return mediaUrl;}
+function route(){clear();current=null;run=null;$('#status').textContent='';const page=location.hash.slice(1)||'home';$('#home-link').hidden=page==='home';if(page==='home')home();else if(page==='tutorial')tutorialIntro();else if(page==='lessons')lessonList();else if(page==='quiz')quizIntro();else if(page==='settings')settings();else if(page.startsWith('lesson/')){const l=available().find(l=>l.id===page.slice(7));if(l){start(l);return;}lessonList();}else home();document.title=($('h1')?.textContent||'Home')+' · BISM Gesture Practice';focus();}
+main.addEventListener('click',e=>{
+const sample=e.target.closest('[data-sample]');if(sample&&current&&!current.done){$('#result').textContent=`${sample.dataset.sample} activated. To explore without activating, use your screen reader to select it.`;return;}
+const a=e.target.closest('[data-action]')?.dataset.action;
+if(a==='start-tutorial'){run={tasks:['single-tap','double-tap','flick-sideways','flick-vertical'],index:0};start(all.find(l=>l.id===run.tasks[0]),'tutorial');}
+if(a==='start-lesson'){location.hash='lesson/'+$('#lesson-choice').value;}
+if(a==='start-quiz'){run=C.quiz(available());start(all.find(l=>l.id===run.tasks[0]),'quiz');}
+if(a==='report')complete('reported');
+if(a==='activate')complete('observed','Play activated. The browser confirms activation, not finger count.');
+if(a==='next')next();
+if(a==='help'&&current){current.help=true;current.done=false;renderExercise();}
+if(a==='retry'&&current){current.help=false;current.done=false;renderExercise();}
+if(a==='skip'&&current){run=C.record(run,'review');if(run.index>=run.tasks.length)finish('quiz');else start(all.find(l=>l.id===run.tasks[run.index]),'quiz');}
+if(a==='repeat-instruction'){$('#instruction').focus();}
+if(a==='mode'&&current&&!current.done){current.mode=current.mode==='native'?'touch':'native';renderExercise();}
+if(a==='open-alert'){$('dialog').showModal();}
+if(a==='close-alert'){$('dialog').close();}
+if(a==='sound-test'){if(prefs.sound){ding();status('Reward sound played.');}else status('Turn on Reward sounds first.');}
+});
+main.addEventListener('input',e=>{if(e.target.id==='practice-slider'){const val=Number(e.target.value);$('#slider-value').textContent=val+' percent';if(val!==50)complete('observed','Practice volume changed. The browser cannot check which gesture you used.');}if(e.target.id==='volume'){prefs.volume=Number(e.target.value)/100;save();}});
+main.addEventListener('change',e=>{if(e.target.dataset.pref){prefs[e.target.dataset.pref]=e.target.checked;apply();save();if(e.target.dataset.pref==='sound'&&prefs.sound)ding();}if(e.target.id==='platform'){prefs.platform=e.target.value;save();status('Phone choice saved.');}});
+$('.skip-link').addEventListener('click',e=>{e.preventDefault();focus();});
+document.addEventListener('pointerdown',unlock,{capture:true});document.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' ')unlock();});window.addEventListener('hashchange',route);window.addEventListener('pagehide',clear);
+async function offlineInfo(){if(!$('#offline-info'))return;try{const reg=await navigator.serviceWorker?.getRegistration();if($('#offline-info'))$('#offline-info').textContent=reg?.active?'App saved for offline practice.':'Open online once to save offline lessons.';}catch{}}
+if('serviceWorker' in navigator&&window.isSecureContext)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').then(reg=>{offlineInfo();reg.addEventListener('updatefound',()=>{const w=reg.installing;w?.addEventListener('statechange',()=>{if(w.state==='installed'&&navigator.serviceWorker.controller)status('Update ready. Finish practice, close all app windows, and reopen.');});});}).catch(()=>status('Offline saving unavailable. Online exercises still work.')));
+apply();route();
 })();

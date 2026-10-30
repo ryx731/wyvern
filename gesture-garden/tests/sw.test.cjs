@@ -95,7 +95,7 @@ test('first installation saves the actual app shell and every local HTML depende
   const html = await fs.readFile(path.join(dist, 'index.html'), 'utf8');
   const dependencies = [...html.matchAll(/(?:src|href)="\.\/([^"#]+)"/g)]
     .map(match => match[1]);
-  assert.ok(dependencies.includes('app.js'), 'The test must cover the real application entrypoint');
+  assert.ok(dependencies.some(asset => new URL(asset, scope).pathname.endsWith('/app.js')), 'The test must cover the real application entrypoint');
   for (const asset of ['index.html', ...dependencies]) {
     assert.ok(entries.has(new URL(asset, scope).href), `${asset} must be available offline`);
   }
@@ -112,7 +112,7 @@ test('navigation prefers a working network response and recovers to the saved ap
   sw.setNetwork(async () => { throw new TypeError('offline'); });
   const offline = await sw.fetch('./lesson', { mode: 'navigate' });
   assert.equal(offline.status, 200);
-  assert.match(await offline.text(), /Gesture Garden/i);
+  assert.match(await offline.text(), /BISM Gesture Practice/i);
   sw.setNetwork(async () => basicResponse('Temporarily unavailable', 503));
   assert.equal((await sw.fetch('./', { mode: 'navigate' })).status, 200);
   const empty = await harness();
@@ -166,3 +166,4 @@ test('activation removes obsolete app caches only; failed installation preserves
   assert.equal(failed.stores.get('gesture-garden-previous'), oldEntries);
   assert.equal(failed.skipped, 0);
 });
+
